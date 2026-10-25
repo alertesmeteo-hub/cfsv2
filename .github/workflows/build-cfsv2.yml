@@ -1,0 +1,76 @@
+name: Produire les prévisions CFSv2 (8 semaines, 9 mois)
+
+on:
+  workflow_dispatch:
+    inputs:
+      init:
+        description: "Date d'initialisation AAAA-MM-JJ (par défaut : le dernier run complet)"
+        required: false
+        default: ""
+      force:
+        description: "Reconstruire même si le run est déjà publié"
+        type: boolean
+        default: false
+  schedule:
+    # Le run de 00 UTC est publié vers 06 UTC ; la semaine glisse d'un jour, la tendance change peu : une fois par jour suffit.
+    - cron: "40 9 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cfsv2-publication
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Vérifier le code
+        run: python -m unittest discover -s tests
+
+      - name: Lire CFSv2 et calculer les écarts
+        id: build
+        run: |
+          set -o pipefail
+          args=""
+          if [ -n "${{ inputs.init }}" ]; then args="$args --init ${{ inputs.init }}"; fi
+          if [ "${{ inputs.force }}" = "true" ]; then args="$args --force"; fi
+          # Coupures passagères de la source : jusqu'à 3 tentatives.
+          for attempt in 1 2 3; do
+            if python scripts/build_data.py $args 2>&1 | tee "$RUNNER_TEMP/tentative.log"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then echo "::error::Échec (tentative $attempt)"; exit 1; fi
+            echo "Échec (tentative $attempt), nouvelle tentative dans 120 s"
+            sleep 120
+          done
+          if [ -f build/data/occitanie.json ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "publish=false" >> "$GITHUB_OUTPUT"; fi
+
+      # Branche data réécrite à chaque run (un seul commit) : le dépôt ne grossit pas.
+      - name: Publier sur la branche data
+        if: steps.build.outputs.publish == 'true'
+        run: |
+          init=$(python -c "import json; print(json.load(open('build/data/index.json'))['init'])")
+          cd build/data
+          touch .nojekyll
+          git init -q -b data
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -q -m "Publication CFSv2 : run du ${init}"
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:data
+          du -sh .
