@@ -58,7 +58,7 @@ jobs:
             echo "Échec (tentative $attempt), nouvelle tentative dans 120 s"
             sleep 120
           done
-          if [ -f build/data/occitanie.json ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "publish=false" >> "$GITHUB_OUTPUT"; fi
+          if [ -f build/data/occitanie.json ] && [ -f build/data/france.json ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "publish=false" >> "$GITHUB_OUTPUT"; fi
 
       # Branche data réécrite à chaque run (un seul commit) : le dépôt ne grossit pas.
       - name: Publier sur la branche data
