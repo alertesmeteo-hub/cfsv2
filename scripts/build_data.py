@@ -2,7 +2,7 @@
 
 Pour chaque échéance : moyenne de 4 membres (membres 01 à 04 du cycle 00 UTC) de la température à 2 m et de la pluie, et écart à la
 climatologie du modèle = moyenne des mêmes échéances des runs du même jour du calendrier des années passées (2019 à l'année dernière,
-membre 01), seules années disponibles sur AWS. Sortie : build/data/index.json, occitanie.json et france.json (9 mois, métropole), publiés sur la branche data.
+membre 01), seules années disponibles sur AWS. Sortie : build/data/index.json, occitanie.json et france.json (8 semaines et 9 mois, métropole), publiés sur la branche data.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import source as s  # noqa: E402
 # (lat_min, lat_max, lon_min, lon_max) : Occitanie, et Pyrénées-Orientales (mailles autour du département)
 ZONE_OCCITANIE = (41.9, 45.3, -0.9, 5.4)
 ZONE_66 = (42.0, 43.0, 1.4, 3.6)
-# France métropolitaine (Corse comprise) : cartes mensuelles seulement
+# France métropolitaine (Corse comprise) : cartes France
 ZONE_FRANCE = (41.0, 51.5, -5.8, 9.9)
 CYCLE = 0
 MEMBRES = (1, 2, 3, 4)
@@ -79,7 +79,7 @@ def cellules(lat, lon, prevu, ref, zone=None) -> list[list[float | None]]:
 
 def construire(init: date) -> dict:
     zone_occ = ZONE_OCCITANIE
-    hebdo, mensuel, mensuel_france = [], [], []
+    hebdo, mensuel, hebdo_france, mensuel_france = [], [], [], []
 
     # Semaines (fichiers de 6 h), tout l'ensemble puis les années de référence
     for k, (debut, fin) in enumerate(c.semaines(init, SEMAINES), start=1):
@@ -87,7 +87,7 @@ def construire(init: date) -> dict:
         membres = []
         grille = None
         for mb in MEMBRES:
-            r = fenetre_6h(init, mb, debut, fin, zone_occ)
+            r = fenetre_6h(init, mb, debut, fin, ZONE_FRANCE)
             if r:
                 membres.append(r[0])
                 grille = r[1]
@@ -100,7 +100,7 @@ def construire(init: date) -> dict:
         for an in ANNEES_CLIM:
             d0 = c.memes_jour_annee(init, an)
             for mb in MEMBRES:
-                r = fenetre_6h(d0, mb, d0 + (debut - init), d0 + (fin - init), zone_occ)
+                r = fenetre_6h(d0, mb, d0 + (debut - init), d0 + (fin - init), ZONE_FRANCE)
                 if r:
                     refs.append(r[0])
                     annees_ok.add(an)
@@ -119,9 +119,20 @@ def construire(init: date) -> dict:
             "occitanie": resume_zone(lat, lon, zone_occ, prevu, ref, jours),
             "po": resume_zone(lat, lon, ZONE_66, prevu, ref, jours),
             "po_dispersion_t2m": c.arrondir(float(np.std(t_membres))),
-            "cellules": cellules(lat, lon, prevu, ref),
+            "cellules": cellules(lat, lon, prevu, ref, zone_occ),
         }
         hebdo.append(entree)
+        hebdo_france.append(
+            {
+                "n": k,
+                "debut": debut.isoformat(),
+                "fin": fin.isoformat(),
+                "membres": len(membres),
+                "annees_reference": len(annees_ok),
+                "france": resume_zone(lat, lon, ZONE_FRANCE, prevu, ref, jours),
+                "cellules": cellules(lat, lon, prevu, ref),
+            }
+        )
         print(f"Semaine {k} : écart PO {entree['po']['t2m']['anomalie']} °C, pluie {entree['po']['pluie']['anomalie_pct']} %", flush=True)
 
     # Mois (fichiers mensuels)
@@ -187,7 +198,7 @@ def construire(init: date) -> dict:
         "zones": {"occitanie": list(ZONE_OCCITANIE), "po": list(ZONE_66)},
         "hebdo": hebdo,
         "mensuel": mensuel,
-        "france": {"zone": list(ZONE_FRANCE), "mensuel": mensuel_france},
+        "france": {"zone": list(ZONE_FRANCE), "hebdo": hebdo_france, "mensuel": mensuel_france},
     }
 
 
