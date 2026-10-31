@@ -1,0 +1,30 @@
+{
+ "schema_version": 1,
+ "init": "2026-10-31",
+ "cycle_utc": 0,
+ "genere_le": "2026-10-31T15:35:09Z",
+ "source": "NOAA NCEP CFSv2 (domaine public), via le bucket AWS noaa-cfs-pds ; champs flxf TMP 2 m et PRATE",
+ "methode": "Moyenne des membres 1, 2, 3, 4 du cycle 00 UTC. Écart = prévision moins la moyenne des runs du même jour du calendrier de 2019 à 2025 (4 membres par année), seules années archivées sur AWS : une référence courte, à lire avec prudence. Semaines : pas de 00 et 12 UTC.",
+ "zones": {
+  "occitanie": [
+   41.9,
+   45.3,
+   -0.9,
+   5.4
+  ],
+  "po": [
+   42.0,
+   43.0,
+   1.4,
+   3.6
+  ],
+  "france": [
+   41.0,
+   51.5,
+   -5.8,
+   9.9
+  ]
+ },
+ "semaines": 8,
+ "mois": 9
+}
